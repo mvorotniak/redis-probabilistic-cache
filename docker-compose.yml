@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  redis-master:
+    container_name: redis-master
+    image: 'bitnami/redis:latest'
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=redispassword
+    ports:
+      - "6379:6379"
+    command: [
+      "redis-server",
+      "--appendonly", "yes",
+      "--maxmemory", "2mb",                     # Set the memory limit
+      "--maxmemory-policy", "allkeys-lru",      # Set the eviction policy
+      "--dir", "/bitnami/redis/data",
+      "--protected-mode", "no"
+    ]
+
+  redis-slave:
+    container_name: slave-redis
+    image: 'bitnami/redis:latest'
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PASSWORD=redispassword
+      - REDIS_PASSWORD=redispassword
+    ports:
+      - "7001:6379"
+    depends_on:
+      - redis-master
+    command: [
+      "redis-server",
+      "--protected-mode", "no"
+    ]
+
+  redis-sentinel-1:
+    image: 'bitnami/redis-sentinel:latest'
+    container_name: sentinel-1
+    environment:
+      - REDIS_MASTER_SET=mymaster
+      - REDIS_MASTER_HOST=127.0.0.1
+      - REDIS_MASTER_PASSWORD=redispassword
+      - REDIS_SENTINEL_DOWN_AFTER_MILLISECONDS=10000
+    depends_on:
+      - redis-master
+      - redis-slave
+    ports:
+      - "26379:26379"
+        
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
